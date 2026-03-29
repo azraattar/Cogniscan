@@ -5,14 +5,13 @@ import joblib, numpy as np
 app = Flask(__name__)
 CORS(app)  # allows Next.js to call it
 
-model   = joblib.load('cogni_model.pkl')
-imputer = joblib.load('cogni_imputer.pkl')
+model   = joblib.load('cogni_model2.pkl')
+imputer = joblib.load('cogni_imputer2.pkl')
 
 FEATURES = [
   'age','gender','educationyears','EF','PS','Global',
   'diabetes','smoking','hypertension','hypercholesterolemia',
-  'lacunes_num','fazekas_cat','study','study1',
-  'SVD_Simple','SVD_Amended','Fazekas','lac_count','CMB_count'
+  'SVD_Simple','SVD_Amended'
 ]
 
 @app.route('/predict', methods=['POST'])
