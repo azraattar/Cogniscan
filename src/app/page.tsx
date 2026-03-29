@@ -15,9 +15,14 @@ export default function PatientPortal() {
             <h1 className="text-3xl font-black text-slate-900">CogniScan<span className="text-cyan-500">.</span></h1>
             <p className="text-slate-500 font-medium">Patient Assessment Portal</p>
           </div>
-          <Link href="/caregiver" className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2 rounded-full font-bold text-sm transition-colors shadow-lg">
-            Caregiver Login →
-          </Link>
+          <div className="flex items-center space-x-3">
+            <Link href="/hindi" className="bg-indigo-100 text-indigo-700 px-6 py-2 rounded-full font-bold text-sm hover:bg-indigo-200 transition-colors shadow-sm flex items-center">
+              🌐 हिंदी में बदलें
+            </Link>
+            <Link href="/caregiver" className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2 rounded-full font-bold text-sm transition-colors shadow-lg">
+              Caregiver Login →
+            </Link>
+          </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
@@ -57,7 +62,7 @@ export default function PatientPortal() {
   );
 }
 
-// ── PROGRESS PANEL (auto-triggers ML + redirects) ──────────────
+// ── PROGRESS PANEL ─────────────────────────────────────────────
 function ProgressPanel() {
   const { scores, medicalProfile, prediction, isLoadingPrediction } = useAssessment();
   const router = useRouter();
@@ -74,11 +79,8 @@ function ProgressPanel() {
 
   const allDone = completedCount === 7;
 
-  // Auto-redirect once prediction is ready
   useEffect(() => {
-    if (prediction && allDone) {
-      router.push('/caregiver');
-    }
+    if (prediction && allDone) router.push('/caregiver');
   }, [prediction, allDone]);
 
   return (
@@ -88,27 +90,21 @@ function ProgressPanel() {
         <span className="text-xs text-slate-400 font-bold">{completedCount} / 7</span>
       </div>
       <div className="w-full bg-slate-700 rounded-full h-1.5">
-        <div
-          className="h-1.5 rounded-full bg-cyan-400 transition-all duration-500"
-          style={{ width: `${(completedCount / 7) * 100}%` }}
-        />
+        <div className="h-1.5 rounded-full bg-cyan-400 transition-all duration-500"
+          style={{ width: `${(completedCount / 7) * 100}%` }} />
       </div>
       <div className={`w-full py-3 px-4 rounded-2xl text-sm font-bold text-center ${
-        isLoadingPrediction          ? 'bg-cyan-500/20 text-cyan-300 animate-pulse' :
-        allDone && prediction        ? 'bg-emerald-500/20 text-emerald-300' :
-        allDone                      ? 'bg-cyan-500/10 text-cyan-400 animate-pulse' :
-        !medicalProfile              ? 'bg-slate-700 text-slate-500' :
-                                       'bg-slate-700 text-slate-400'
+        isLoadingPrediction     ? 'bg-cyan-500/20 text-cyan-300 animate-pulse' :
+        allDone && prediction   ? 'bg-emerald-500/20 text-emerald-300' :
+        allDone                 ? 'bg-cyan-500/10 text-cyan-400 animate-pulse' :
+        !medicalProfile         ? 'bg-slate-700 text-slate-500' :
+                                  'bg-slate-700 text-slate-400'
       }`}>
-        {isLoadingPrediction
-          ? '⏳ Running AI Model...'
-          : allDone && prediction
-            ? '✅ Redirecting to dashboard...'
-            : allDone
-              ? '⏳ Analyzing results...'
-              : !medicalProfile
-                ? 'Complete profile first'
-                : `${completedCount}/7 modules complete`}
+        {isLoadingPrediction      ? '⏳ Running AI Model...'
+          : allDone && prediction ? '✅ Redirecting to dashboard...'
+          : allDone               ? '⏳ Analyzing results...'
+          : !medicalProfile       ? 'Complete profile first'
+          : `${completedCount}/7 modules complete`}
       </div>
     </div>
   );
@@ -120,7 +116,8 @@ function MedicalIntakeForm() {
   const [form, setForm] = useState({
     age: '', gender: '0', educationyears: '',
     diabetes: '0', smoking: '0',
-    hypertension: '0', hypercholesterolemia: '0'
+    hypertension: '0', hypercholesterolemia: '0',
+    svdSimple: '0', svdAmended: '0'
   });
 
   if (medicalProfile) return (
@@ -141,6 +138,7 @@ function MedicalIntakeForm() {
       <div className="bg-violet-50 w-12 h-12 rounded-xl flex items-center justify-center text-violet-500 text-2xl mb-4">📋</div>
       <h3 className="text-xl font-bold text-slate-800 mb-1">Step 1: Patient Profile</h3>
       <p className="text-slate-500 mb-6 text-sm">Required before the assessment begins.</p>
+
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
           <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Age</label>
@@ -176,6 +174,23 @@ function MedicalIntakeForm() {
           </select>
         </div>
       </div>
+
+      {/* SVD Scores */}
+      <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-amber-50 rounded-2xl border border-amber-100">
+        <div>
+          <label className="text-[10px] font-black text-amber-700 uppercase tracking-widest">SVD Simple Score</label>
+          <input type="number" min="0" max="4" value={form.svdSimple}
+            onChange={e => setForm(f => ({ ...f, svdSimple: e.target.value }))}
+            className="w-full mt-1 p-2 bg-white border border-amber-200 rounded-lg text-amber-900 font-bold" />
+        </div>
+        <div>
+          <label className="text-[10px] font-black text-amber-700 uppercase tracking-widest">SVD Amended Score</label>
+          <input type="number" min="0" max="4" value={form.svdAmended}
+            onChange={e => setForm(f => ({ ...f, svdAmended: e.target.value }))}
+            className="w-full mt-1 p-2 bg-white border border-amber-200 rounded-lg text-amber-900 font-bold" />
+        </div>
+      </div>
+
       <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Medical History (tap to toggle)</p>
       <div className="grid grid-cols-3 gap-3 mb-6">
         {[
@@ -193,6 +208,7 @@ function MedicalIntakeForm() {
           </button>
         ))}
       </div>
+
       <button
         onClick={() => setMedicalProfile({
           age:                  Number(form.age),
@@ -202,6 +218,8 @@ function MedicalIntakeForm() {
           smoking:              Number(form.smoking),
           hypertension:         Number(form.hypertension),
           hypercholesterolemia: Number(form.hypercholesterolemia),
+          svdSimple:            Number(form.svdSimple),
+          svdAmended:           Number(form.svdAmended),
         })}
         disabled={!form.age || !form.educationyears}
         className="w-full bg-slate-900 text-white py-4 font-bold rounded-xl disabled:opacity-30 hover:bg-slate-800 transition-all">

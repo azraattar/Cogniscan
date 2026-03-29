@@ -29,6 +29,8 @@ export interface MedicalProfile {
   smoking: number;
   hypertension: number;
   hypercholesterolemia: number;
+  svdSimple: number;   // Add this
+  svdAmended: number;
 }
 
 export interface PredictionResult {
@@ -57,13 +59,16 @@ interface AssessmentContextType {
 
 // ── Score → ML Feature Mapper ──────────────────────────────────
 function mapToMLFeatures(scores: ClinicalScores, medical: MedicalProfile) {
+  // 1. Executive Function (EF) proxy
   const attentionNorm = (scores.attention.score ?? 0) / 5;
   const hesitationPenalty = Math.min((scores.speechAnalysis.hesitations ?? 0) / 10, 1);
   const EF = parseFloat(((attentionNorm - hesitationPenalty * 0.3) * 10).toFixed(2));
 
+  // 2. Processing Speed (PS) proxy
   const rt = scores.reactionTime.score ?? 800;
   const PS = parseFloat((Math.max(0, (800 - rt) / 65)).toFixed(2));
 
+  // 3. Global Cognition proxy
   const registrationNorm = (scores.registration.score ?? 0) / 3;
   const recallNorm = (scores.recall.score ?? 0) / 3;
   const namingNorm = (scores.animalNaming.score ?? 0) / 3;
@@ -78,18 +83,20 @@ function mapToMLFeatures(scores: ClinicalScores, medical: MedicalProfile) {
       speechNorm * 0.15) * 10
   ).toFixed(2));
 
+  // RETURN EXACT FEATURE LIST ONLY
   return {
     age: medical.age,
     gender: medical.gender,
     educationyears: medical.educationyears,
-    EF, PS, Global,
+    EF: EF,
+    PS: PS,
+    Global: Global,
     diabetes: medical.diabetes,
     smoking: medical.smoking,
     hypertension: medical.hypertension,
     hypercholesterolemia: medical.hypercholesterolemia,
-    lacunes_num: 0, fazekas_cat: 0, study: 0, study1: 0,
-    SVD_Simple: 0, SVD_Amended: 0, Fazekas: 0,
-    lac_count: 0, CMB_count: 0,
+    SVD_Simple:   medical.svdSimple   ?? 0,
+    SVD_Amended:  medical.svdAmended  ?? 0, // Key names must match Python exactly
   };
 }
 
@@ -193,21 +200,28 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
   }, [scores, medicalProfile, isLoadingPrediction, calculateTotalScore, setPrediction]);
 
   // Auto-trigger Effect
-  useEffect(() => {
-    const allDone =
-      scores.orientation.score !== null &&
-      scores.registration.score !== null &&
-      scores.attention.score !== null &&
-      scores.animalNaming.score !== null &&
-      scores.reactionTime.score !== null &&
-      scores.recall.score !== null &&
-      scores.speechAnalysis.clarity !== null;
+// NEW: Trigger as soon as medical profile is available
+// ── Auto-trigger ONLY when all 7 tests + profile are ready ──
+useEffect(() => {
+  const allDone =
+    scores.orientation.score      !== null &&
+    scores.registration.score     !== null &&
+    scores.attention.score        !== null &&
+    scores.animalNaming.score     !== null &&
+    scores.reactionTime.score     !== null &&
+    scores.recall.score           !== null &&
+    scores.speechAnalysis.clarity !== null;
 
-    if (allDone && medicalProfile && !prediction && !isLoadingPrediction) {
-      runMLPrediction();
-    }
-  }, [scores, medicalProfile, prediction, isLoadingPrediction, runMLPrediction]);
+  if (!allDone || !medicalProfile || isLoadingPrediction) return;
 
+  const timer = setTimeout(() => {
+    runMLPrediction();
+  }, 500);
+
+  return () => clearTimeout(timer);
+// ✅ Remove runMLPrediction from deps to avoid infinite loop
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [scores, medicalProfile]);
   const getRiskLevel = useCallback((): RiskLevel => {
     if (prediction) {
       if (prediction.risk === 'low') return 'Low Risk (Normal)';

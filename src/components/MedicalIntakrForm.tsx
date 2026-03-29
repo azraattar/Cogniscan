@@ -8,7 +8,7 @@ export function MedicalIntakeForm() {
   const [form, setForm] = useState({
     age: '', gender: '0', educationyears: '',
     diabetes: '0', smoking: '0',
-    hypertension: '0', hypercholesterolemia: '0'
+    hypertension: '0', hypercholesterolemia: '0', svdSimple: '0', svdAmended: '0'
   });
 
   if (medicalProfile) return (
@@ -31,14 +31,14 @@ export function MedicalIntakeForm() {
         <div>
           <label className="text-xs font-bold text-slate-500 uppercase">Age</label>
           <input type="number" value={form.age}
-            onChange={e => setForm({...form, age: e.target.value})}
+            onChange={e => setForm({ ...form, age: e.target.value })}
             className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl"
             placeholder="e.g. 72" />
         </div>
         <div>
           <label className="text-xs font-bold text-slate-500 uppercase">Gender</label>
           <select value={form.gender}
-            onChange={e => setForm({...form, gender: e.target.value})}
+            onChange={e => setForm({ ...form, gender: e.target.value })}
             className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl">
             <option value="0">Male</option>
             <option value="1">Female</option>
@@ -47,14 +47,14 @@ export function MedicalIntakeForm() {
         <div>
           <label className="text-xs font-bold text-slate-500 uppercase">Years of Education</label>
           <input type="number" value={form.educationyears}
-            onChange={e => setForm({...form, educationyears: e.target.value})}
+            onChange={e => setForm({ ...form, educationyears: e.target.value })}
             className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl"
             placeholder="e.g. 12" />
         </div>
         <div>
           <label className="text-xs font-bold text-slate-500 uppercase">Smoking</label>
           <select value={form.smoking}
-            onChange={e => setForm({...form, smoking: e.target.value})}
+            onChange={e => setForm({ ...form, smoking: e.target.value })}
             className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl">
             <option value="0">Never</option>
             <option value="1">Former</option>
@@ -62,7 +62,36 @@ export function MedicalIntakeForm() {
           </select>
         </div>
       </div>
-
+      <div className="grid grid-cols-2 gap-4 mt-6 p-4 bg-amber-50 rounded-2xl border border-amber-100">
+        <div>
+          <label className="text-[10px] font-black text-amber-700 uppercase tracking-widest">
+            SVD Simple Score (0-4)
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="4"
+            value={form.svdSimple}
+            onChange={e => setForm(f => ({ ...f, svdSimple: e.target.value }))}
+            className="w-full mt-1 p-2 bg-white border border-amber-200 rounded-lg outline-none focus:border-amber-400 text-amber-900 font-bold"
+            placeholder="0"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] font-black text-amber-700 uppercase tracking-widest">
+            SVD Amended Score (0-4)
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="4"
+            value={form.svdAmended}
+            onChange={e => setForm(f => ({ ...f, svdAmended: e.target.value }))}
+            className="w-full mt-1 p-2 bg-white border border-amber-200 rounded-lg outline-none focus:border-amber-400 text-amber-900 font-bold"
+            placeholder="0"
+          />
+        </div>
+      </div>
       {/* Toggles for binary medical history */}
       <div className="grid grid-cols-3 gap-3 mt-4">
         {[
@@ -71,17 +100,18 @@ export function MedicalIntakeForm() {
           { key: 'hypercholesterolemia', label: 'High Cholesterol' }
         ].map(({ key, label }) => (
           <button key={key}
-            onClick={() => setForm({...form, [key]: form[key as keyof typeof form] === '0' ? '1' : '0'})}
-            className={`p-3 rounded-xl border font-bold text-sm transition-all ${
-              form[key as keyof typeof form] === '1'
+            onClick={() => setForm({ ...form, [key]: form[key as keyof typeof form] === '0' ? '1' : '0' })}
+            className={`p-3 rounded-xl border font-bold text-sm transition-all ${form[key as keyof typeof form] === '1'
                 ? 'bg-rose-100 border-rose-300 text-rose-700'
                 : 'bg-slate-50 border-slate-200 text-slate-500'
-            }`}>
+              }`}>
             {label} {form[key as keyof typeof form] === '1' ? '✓' : '○'}
           </button>
         ))}
       </div>
-
+      {/* --- ADD THIS SECTION FOR SVD SCORES --- */}
+      
+      {/* --------------------------------------- */}
       <button
         onClick={() => setMedicalProfile({
           age: Number(form.age),
@@ -91,6 +121,8 @@ export function MedicalIntakeForm() {
           smoking: Number(form.smoking),
           hypertension: Number(form.hypertension),
           hypercholesterolemia: Number(form.hypercholesterolemia),
+          svdSimple: Number(form.svdSimple), // Pass it
+          svdAmended: Number(form.svdAmended),
         })}
         disabled={!form.age || !form.educationyears}
         className="w-full mt-6 bg-slate-900 text-white py-4 font-bold rounded-xl disabled:opacity-40">
