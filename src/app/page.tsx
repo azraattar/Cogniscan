@@ -15,6 +15,12 @@ export default function PatientPortal() {
             <h1 className="text-3xl font-black text-slate-900">CogniScan<span className="text-cyan-500">.</span></h1>
             <p className="text-slate-500 font-medium">Patient Assessment Portal</p>
           </div>
+          
+            {/* NEW TOGGLE BUTTON */}
+            <Link href="/hindi" className="bg-indigo-100 text-indigo-700 px-6 py-2 rounded-full font-bold text-sm hover:bg-indigo-200 transition-colors shadow-sm flex items-center">
+              🌐 हिंदी में बदलें
+            </Link>
+
           <Link href="/caregiver" className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2 rounded-full font-bold text-sm transition-colors shadow-lg">
             Caregiver Login →
           </Link>
