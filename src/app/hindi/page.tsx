@@ -124,7 +124,7 @@ function MedicalIntakeForm() {
   const [form, setForm] = useState({
     age: '', gender: '0', educationyears: '',
     diabetes: '0', smoking: '0',
-    hypertension: '0', hypercholesterolemia: '0'
+    hypertension: '0', hypercholesterolemia: '0',svdSimple: '0', svdAmended: '0'
   });
 
   if (medicalProfile) return (
@@ -206,6 +206,8 @@ function MedicalIntakeForm() {
           smoking:              Number(form.smoking),
           hypertension:         Number(form.hypertension),
           hypercholesterolemia: Number(form.hypercholesterolemia),
+          svdSimple:            Number(form.svdSimple),
+          svdAmended:           Number(form.svdAmended),
         })}
         disabled={!form.age || !form.educationyears}
         className="w-full bg-slate-900 text-white py-4 font-bold rounded-xl disabled:opacity-30 hover:bg-slate-800 transition-all">
