@@ -1,70 +1,72 @@
 "use client";
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useAssessment } from '@/context/AssessmentContext';
 
-export default function PatientPortalHindi() {
-  const { scores, medicalProfile } = useAssessment();
+// ── SHARED VOICE CACHE (module-level, initialized once) ───────
+let _cachedVoice: SpeechSynthesisVoice | null | undefined = undefined;
 
+function getHindiVoice(): SpeechSynthesisVoice | null {
+  if (_cachedVoice !== undefined) return _cachedVoice;
+  const voices = window.speechSynthesis?.getVoices() ?? [];
+  _cachedVoice = voices.find(v => v.lang.includes('hi-IN') || v.name.includes('Lekha')) ?? voices[0] ?? null;
+  return _cachedVoice;
+}
+
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged = () => { _cachedVoice = undefined; getHindiVoice(); };
+}
+
+function speakAndWait(text: string, rate = 0.85): Promise<void> {
+  return new Promise(resolve => {
+    if (!('speechSynthesis' in window)) { resolve(); return; }
+    const u = new SpeechSynthesisUtterance(text);
+    const voice = getHindiVoice();
+    if (voice) u.voice = voice;
+    u.rate = rate; u.pitch = 1.1;
+    u.onend = () => resolve();
+    u.onerror = () => resolve();
+    window.speechSynthesis.speak(u);
+  });
+}
+
+function speak(text: string, rate = 0.85): void {
+  speakAndWait(text, rate);
+}
+
+// ── HELPER COMPONENTS ──────────────────────────────────────────
+function StatusRow({ label, score, max, isPercent = false, isMs = false }: {
+  label: string; score: number | null; max: number; isPercent?: boolean; isMs?: boolean;
+}) {
+  const isComplete = score !== null;
+  const scoreDisplay = isPercent ? `${score}%` : isMs ? `${score}ms` : `${score}/${max}`;
   return (
-    <main className="min-h-screen bg-[#F8FAFC] p-6 lg:p-12">
-      <div className="max-w-6xl mx-auto">
-        <header className="flex justify-between items-center mb-12">
-          <div>
-            <h1 className="text-3xl font-black text-slate-900">CogniScan<span className="text-cyan-500">.</span></h1>
-            <p className="text-slate-500 font-medium">रोगी मूल्यांकन पोर्टल (Patient Assessment)</p>
-          </div>
-          <div className="flex space-x-4">
-            <Link href="/" className="bg-indigo-100 text-indigo-700 px-6 py-2 rounded-full font-bold text-sm hover:bg-indigo-200 transition-colors shadow-sm flex items-center">
-              🌐 Switch to English
-            </Link>
-            <Link href="/caregiver" className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2 rounded-full font-bold text-sm transition-colors shadow-lg">
-              डॉक्टर लॉगिन →
-            </Link>
-          </div>
-        </header>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-          <section className="lg:col-span-2 space-y-8">
-            <MedicalIntakeForm />
-            {medicalProfile && (
-              <>
-                <OrientationCard />
-                <RegistrationCard />
-                <AttentionCard />
-                <VisualNamingCard />
-                <ReactionCard />
-              
-                <RecallCard />
-                <SpeechFluencyCard />
-              </>
-            )}
-          </section>
-
-          <aside className="space-y-6">
-            <div className="bg-slate-900 p-8 rounded-3xl text-white shadow-2xl sticky top-12">
-              <h3 className="text-lg font-bold mb-6">नैदानिक स्थिति (Status)</h3>
-              <div className="space-y-5">
-                <StatusRow label="1. ओरिएंटेशन (समय/स्थान)"    score={scores.orientation.score}      max={5} />
-                <StatusRow label="2. मेमोरी (याददाश्त)"         score={scores.registration.score}     max={3} />
-                <StatusRow label="3. ध्यान (Attention)"        score={scores.attention.score}        max={5} />
-                <StatusRow label="4. दृश्य पहचान (Naming)"      score={scores.animalNaming.score}     max={3} />
-                <StatusRow label="5. प्रतिक्रिया (Reaction)"   score={scores.reactionTime.score}     max={5} isMs />
-                <StatusRow label="6. विलंबित याद (Recall)"      score={scores.recall.score}           max={3} />
-                <StatusRow label="7. सहज भाषण (Speech)"        score={scores.speechAnalysis.clarity} max={100} isPercent />
-              </div>
-              <ProgressPanel />
-            </div>
-          </aside>
-        </div>
+    <div className="flex items-center justify-between">
+      <div className="flex items-center space-x-3">
+        <div className={`w-2 h-2 rounded-full ${isComplete ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-slate-600'}`} />
+        <p className="text-sm font-medium text-slate-300">{label}</p>
       </div>
-    </main>
+      <span className={`text-xs font-bold ${isComplete ? 'text-emerald-400' : 'text-slate-500'}`}>
+        {isComplete ? `पूर्ण (${scoreDisplay})` : 'तैयार (Ready)'}
+      </span>
+    </div>
   );
 }
 
+function CompletedCard({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-3xl flex items-center space-x-4 opacity-90 animate-in fade-in">
+      <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-500">✓</div>
+      <div>
+        <h3 className="text-lg font-bold text-emerald-900">{title}</h3>
+        <p className="text-emerald-600 text-sm font-medium">{subtitle}</p>
+      </div>
+    </div>
+  );
+}
 
-// ── PROGRESS PANEL ──────────────
+// ── PROGRESS PANEL ──────────────────────────────────────────────
 function ProgressPanel() {
   const { scores, medicalProfile, prediction, isLoadingPrediction } = useAssessment();
 
@@ -110,6 +112,65 @@ function ProgressPanel() {
                 : `${completedCount}/7 मॉड्यूल पूर्ण`}
       </div>
     </div>
+  );
+}
+
+// ── MAIN PAGE ──────────────────────────────────────────────────
+export default function PatientPortalHindi() {
+  const { scores, medicalProfile } = useAssessment();
+
+  return (
+    <main className="min-h-screen bg-[#F8FAFC] p-6 lg:p-12">
+      <div className="max-w-6xl mx-auto">
+        <header className="flex justify-between items-center mb-12">
+          <div>
+            <h1 className="text-3xl font-black text-slate-900">CogniScan<span className="text-cyan-500">.</span></h1>
+            <p className="text-slate-500 font-medium">रोगी मूल्यांकन पोर्टल (Patient Assessment)</p>
+          </div>
+          <div className="flex space-x-4">
+            <Link href="/" className="bg-indigo-100 text-indigo-700 px-6 py-2 rounded-full font-bold text-sm hover:bg-indigo-200 transition-colors shadow-sm flex items-center">
+              🌐 Switch to English
+            </Link>
+            <Link href="/caregiver" className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2 rounded-full font-bold text-sm transition-colors shadow-lg">
+              डॉक्टर लॉगिन →
+            </Link>
+          </div>
+        </header>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+          <section className="lg:col-span-2 space-y-8">
+            <MedicalIntakeForm />
+            {medicalProfile && (
+              <>
+                <OrientationCard />
+                <RegistrationCard />
+                <AttentionCard />
+                <VisualNamingCard />
+                <ReactionCard />
+                <RecallCard />
+                <SpeechFluencyCard />
+              </>
+            )}
+          </section>
+
+          <aside className="space-y-6">
+            <div className="bg-slate-900 p-8 rounded-3xl text-white shadow-2xl sticky top-12">
+              <h3 className="text-lg font-bold mb-6">नैदानिक स्थिति (Status)</h3>
+              <div className="space-y-5">
+                <StatusRow label="1. ओरिएंटेशन (समय/स्थान)"    score={scores.orientation.score}      max={5} />
+                <StatusRow label="2. मेमोरी (याददाश्त)"         score={scores.registration.score}     max={3} />
+                <StatusRow label="3. ध्यान (Attention)"         score={scores.attention.score}        max={5} />
+                <StatusRow label="4. दृश्य पहचान (Naming)"      score={scores.animalNaming.score}     max={3} />
+                <StatusRow label="5. प्रतिक्रिया (Reaction)"    score={scores.reactionTime.score}     max={5} isMs />
+                <StatusRow label="6. विलंबित याद (Recall)"      score={scores.recall.score}           max={3} />
+                <StatusRow label="7. सहज भाषण (Speech)"         score={scores.speechAnalysis.clarity} max={100} isPercent />
+              </div>
+              <ProgressPanel />
+            </div>
+          </aside>
+        </div>
+      </div>
+    </main>
   );
 }
 
@@ -175,6 +236,20 @@ function MedicalIntakeForm() {
             <option value="2">वर्तमान में पीते हैं (Current)</option>
           </select>
         </div>
+        <div className="col-span-2 grid grid-cols-2 gap-4 p-4 bg-amber-50 rounded-2xl border border-amber-100">
+          <div>
+            <label className="text-[10px] font-black text-amber-700 uppercase tracking-widest">SVD Simple Score</label>
+            <input type="number" min="0" max="4" value={form.svdSimple}
+              onChange={e => setForm(f => ({ ...f, svdSimple: e.target.value }))}
+              className="w-full mt-1 p-2 bg-white border border-amber-200 rounded-lg text-amber-900 font-bold" />
+          </div>
+          <div>
+            <label className="text-[10px] font-black text-amber-700 uppercase tracking-widest">SVD Amended Score</label>
+            <input type="number" min="0" max="4" value={form.svdAmended}
+              onChange={e => setForm(f => ({ ...f, svdAmended: e.target.value }))}
+              className="w-full mt-1 p-2 bg-white border border-amber-200 rounded-lg text-amber-900 font-bold" />
+          </div>
+        </div>
       </div>
       <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">चिकित्सा इतिहास (चुनने के लिए टैप करें)</p>
       <div className="grid grid-cols-3 gap-3 mb-6">
@@ -213,166 +288,120 @@ function MedicalIntakeForm() {
   );
 }
 
-// ── HELPER COMPONENTS ──────────────────────────────────────────
-function StatusRow({ label, score, max, isPercent = false, isMs = false }: {
-  label: string; score: number | null; max: number; isPercent?: boolean; isMs?: boolean;
-}) {
-  const isComplete = score !== null;
-  const scoreDisplay = isPercent ? `${score}%` : isMs ? `${score}ms` : `${score}/${max}`;
-  return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center space-x-3">
-        <div className={`w-2 h-2 rounded-full ${isComplete ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-slate-600'}`} />
-        <p className="text-sm font-medium text-slate-300">{label}</p>
-      </div>
-      <span className={`text-xs font-bold ${isComplete ? 'text-emerald-400' : 'text-slate-500'}`}>
-        {isComplete ? `पूर्ण (${scoreDisplay})` : 'तैयार (Ready)'}
-      </span>
-    </div>
-  );
-}
-
-function CompletedCard({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-3xl flex items-center space-x-4 opacity-90 animate-in fade-in">
-      <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-500">✓</div>
-      <div>
-        <h3 className="text-lg font-bold text-emerald-900">{title}</h3>
-        <p className="text-emerald-600 text-sm font-medium">{subtitle}</p>
-      </div>
-    </div>
-  );
-}
-
-// ── TEST 1: CULTURAL ORIENTATION (VOICE-ENABLED) ────────────────
+// ── TEST 1: CULTURAL ORIENTATION ───────────────────────────────
 function OrientationCard() {
-    const { scores, setScore } = useAssessment();
-    const [isRecording, setIsRecording] = useState(false);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [transcript, setTranscript] = useState("");
-    const [testPhase, setTestPhase] = useState<'idle'|'ready'|'results'>('idle');
-    const [countdown, setCountdown] = useState(15);
-    const [localScore, setLocalScore] = useState(0);
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const chunksRef = useRef<Blob[]>([]);
-    const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  
-    const speakAndWait = (text: string, rate = 0.85) => new Promise<void>(resolve => {
-      if (!('speechSynthesis' in window)) { resolve(); return; }
-      const u = new SpeechSynthesisUtterance(text);
-      const voices = window.speechSynthesis.getVoices();
-      const hindiVoice = voices.find(v => v.lang.includes('hi-IN') || v.name.includes('Lekha'));
-      if (hindiVoice) u.voice = hindiVoice;
-      u.rate = rate; u.pitch = 1.1;
-      u.onend = () => resolve(); u.onerror = () => resolve();
-      window.speechSynthesis.speak(u);
-    });
-  
-    const startOrientation = async () => {
-      setTestPhase('ready');
-      await speakAndWait("अभी कौन सी ऋतु चल रही है, और हाल ही में कौन सा बड़ा त्यौहार बीता है", 0.9);
-    };
-  
-    const toggleRecording = async () => {
-      if (isRecording && mediaRecorderRef.current) {
-        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-        mediaRecorderRef.current.stop(); return;
-      }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const recorder = new MediaRecorder(stream);
-        chunksRef.current = [];
-        recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-        recorder.onstop = async () => {
-          setIsRecording(false); setIsProcessing(true); stream.getTracks().forEach(t => t.stop());
-          const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-          if (blob.size < 1000) { setIsProcessing(false); return; }
-          const fd = new FormData(); fd.append('file', blob);
-          try {
-            const res = await fetch('/api/transcribe', { method: 'POST', body: fd });
-            const data = await res.json();
-            if (data.transcript) {
-              setTranscript(data.transcript);
-              const l = data.transcript.toLowerCase();
-  
-              // Smart Grading: Checks for common Indian seasons and festivals
-              const validKeywords = [
-                'होली', 'दिवाली', 'दीपावली', 'ईद', 'क्रिसमस', 'नवरात्रि', 'दशहरा', 'गणेश',
-                'गर्मी', 'सर्दी', 'ठंड', 'बारिश', 'वसंत', 'बसंत', 'पतझड़', 'मार्च', 'महीना',
-                'holi', 'diwali', 'eid', 'christmas', 'summer', 'winter', 'rain', 'spring', 'march'
-              ];
-  
-              const hitKeyword = validKeywords.some(kw => l.includes(kw));
-  
-              // Award 5 points if they hit a keyword, 3 points if they just spoke a full sentence
-              let finalScore = 0;
-              if (hitKeyword) finalScore = 5;
-              else if (l.trim().length > 5) finalScore = 3;
-  
-              setLocalScore(finalScore);
-              setScore('orientation', { score: finalScore, time: null });
-              setTestPhase('results');
-            }
-          } catch {} finally { setIsProcessing(false); }
-        };
-        recorder.start(); mediaRecorderRef.current = recorder; setIsRecording(true); setCountdown(15);
-        countdownIntervalRef.current = setInterval(() => {
-          setCountdown(prev => {
-            if (prev <= 1) {
-              if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-              if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
-      } catch { alert("Microphone blocked."); }
-    };
-  
-    if (scores.orientation.score !== null) return <CompletedCard title="सांस्कृतिक ओरिएंटेशन" subtitle="समय और परिवेश की जागरूकता दर्ज की गई।" />;
-  
-    return (
-      <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 min-h-[300px] flex flex-col justify-center">
-        <div className="flex items-center space-x-3 mb-6">
-          <div className="bg-blue-50 w-12 h-12 rounded-xl flex items-center justify-center text-blue-500 text-2xl">🌍</div>
-          <div>
-            <h3 className="text-xl font-bold text-slate-800">मॉड्यूल 1: सांस्कृतिक ओरिएंटेशन</h3>
-            <p className="text-slate-500 text-sm">समय और परिवेश की जागरूकता</p>
-          </div>
+  const { scores, setScore } = useAssessment();
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [testPhase, setTestPhase] = useState<'idle'|'ready'|'results'>('idle');
+  const [countdown, setCountdown] = useState(15);
+  const [localScore, setLocalScore] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  if (scores.orientation.score !== null)
+    return <CompletedCard title="सांस्कृतिक ओरिएंटेशन" subtitle="समय और परिवेश की जागरूकता दर्ज की गई।" />;
+
+  const startOrientation = () => {
+    setTestPhase('ready'); // UI updates instantly
+    speak("अभी कौन सी ऋतु चल रही है, और हाल ही में कौन सा बड़ा त्यौहार बीता है", 0.9);
+  };
+
+  const toggleRecording = async () => {
+    if (isRecording && mediaRecorderRef.current) {
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      mediaRecorderRef.current.stop(); return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = async () => {
+        setIsRecording(false); setIsProcessing(true); stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        if (blob.size < 1000) { setIsProcessing(false); return; }
+        const fd = new FormData(); fd.append('file', blob);
+        try {
+          const res = await fetch('/api/transcribe', { method: 'POST', body: fd });
+          const data = await res.json();
+          if (data.transcript) {
+            setTranscript(data.transcript);
+            const l = data.transcript.toLowerCase();
+            const validKeywords = [
+              'होली', 'दिवाली', 'दीपावली', 'ईद', 'क्रिसमस', 'नवरात्रि', 'दशहरा', 'गणेश',
+              'गर्मी', 'सर्दी', 'ठंड', 'बारिश', 'वसंत', 'बसंत', 'पतझड़', 'मार्च', 'महीना',
+              'holi', 'diwali', 'eid', 'christmas', 'summer', 'winter', 'rain', 'spring', 'march'
+            ];
+            const hitKeyword = validKeywords.some(kw => l.includes(kw));
+            let finalScore = 0;
+            if (hitKeyword) finalScore = 5;
+            else if (l.trim().length > 5) finalScore = 3;
+            setLocalScore(finalScore);
+            setScore('orientation', { score: finalScore, time: null });
+            setTestPhase('results');
+          }
+        } catch {} finally { setIsProcessing(false); }
+      };
+      recorder.start(); mediaRecorderRef.current = recorder; setIsRecording(true); setCountdown(15);
+      countdownIntervalRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+            if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch { alert("Microphone blocked."); }
+  };
+
+  return (
+    <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 min-h-[300px] flex flex-col justify-center">
+      <div className="flex items-center space-x-3 mb-6">
+        <div className="bg-blue-50 w-12 h-12 rounded-xl flex items-center justify-center text-blue-500 text-2xl">🌍</div>
+        <div>
+          <h3 className="text-xl font-bold text-slate-800">मॉड्यूल 1: सांस्कृतिक ओरिएंटेशन</h3>
+          <p className="text-slate-500 text-sm">समय और परिवेश की जागरूकता</p>
         </div>
-  
-        {testPhase === 'idle' && (
-          <button onClick={startOrientation} className="w-full bg-blue-100 text-blue-700 py-6 font-bold rounded-xl hover:bg-blue-200 transition-all flex items-center justify-center space-x-3 border border-blue-200">
-            <span className="text-2xl">🔊</span><span className="text-lg">ऑडियो निर्देश चलाएं</span>
-          </button>
-        )}
-  
-        {testPhase === 'ready' && (
-          <div className="space-y-4 animate-in slide-in-from-bottom-4 fade-in">
-            <div className="text-center p-6 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-lg font-bold text-slate-800">अभी कौन सी ऋतु (Season) चल रही है और आखिरी बड़ा त्यौहार कौन सा था?</span>
-              <p className="text-sm text-slate-500 mt-2">अपना उत्तर बोलकर दें।</p>
-            </div>
-            <button onClick={toggleRecording} disabled={isProcessing}
-              className={`w-full text-white py-4 font-bold rounded-xl transition-all shadow-lg ${isRecording ? 'bg-rose-500 animate-pulse scale-95' : isProcessing ? 'bg-slate-400' : 'bg-slate-900 hover:bg-slate-800'}`}>
-              {isRecording ? `🔴 रिकॉर्डिंग... ${countdown}s में बंद हो जाएगी` : isProcessing ? '⏳ AI जांच रहा है...' : '🎤 उत्तर रिकॉर्ड करने के लिए टैप करें'}
-            </button>
-          </div>
-        )}
-  
-        {testPhase === 'results' && (
-          <div className="animate-in zoom-in-95 fade-in duration-300 mt-4">
-            <div className={`p-6 rounded-2xl border ${localScore === 5 ? 'bg-emerald-50 border-emerald-200' : localScore > 0 ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'} text-center`}>
-              <h4 className={`text-4xl font-black mb-2 ${localScore === 5 ? 'text-emerald-600' : localScore > 0 ? 'text-amber-600' : 'text-rose-600'}`}>{localScore} / 5</h4>
-              <p className="text-slate-600 font-medium mb-4">ओरिएंटेशन स्कोर</p>
-            </div>
-            {transcript && <div className="mt-4 p-4 bg-slate-50 rounded-xl text-slate-600 italic text-sm text-center">सुना गया: "{transcript}"</div>}
-          </div>
-        )}
       </div>
-    );
-  }
-// ── TEST 2: MEMORY REGISTRATION ───────────────────────────────
+
+      {testPhase === 'idle' && (
+        <button onClick={startOrientation} className="w-full bg-blue-100 text-blue-700 py-6 font-bold rounded-xl hover:bg-blue-200 transition-all flex items-center justify-center space-x-3 border border-blue-200">
+          <span className="text-2xl">🔊</span><span className="text-lg">ऑडियो निर्देश चलाएं</span>
+        </button>
+      )}
+
+      {testPhase === 'ready' && (
+        <div className="space-y-4 animate-in slide-in-from-bottom-4 fade-in">
+          <div className="text-center p-6 bg-slate-50 rounded-xl border border-slate-200">
+            <span className="text-lg font-bold text-slate-800">अभी कौन सी ऋतु (Season) चल रही है और आखिरी बड़ा त्यौहार कौन सा था?</span>
+            <p className="text-sm text-slate-500 mt-2">अपना उत्तर बोलकर दें।</p>
+          </div>
+          <button onClick={toggleRecording} disabled={isProcessing}
+            className={`w-full text-white py-4 font-bold rounded-xl transition-all shadow-lg ${isRecording ? 'bg-rose-500 animate-pulse scale-95' : isProcessing ? 'bg-slate-400' : 'bg-slate-900 hover:bg-slate-800'}`}>
+            {isRecording ? `🔴 रिकॉर्डिंग... ${countdown}s में बंद हो जाएगी` : isProcessing ? '⏳ AI जांच रहा है...' : '🎤 उत्तर रिकॉर्ड करने के लिए टैप करें'}
+          </button>
+        </div>
+      )}
+
+      {testPhase === 'results' && (
+        <div className="animate-in zoom-in-95 fade-in duration-300 mt-4">
+          <div className={`p-6 rounded-2xl border ${localScore === 5 ? 'bg-emerald-50 border-emerald-200' : localScore > 0 ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'} text-center`}>
+            <h4 className={`text-4xl font-black mb-2 ${localScore === 5 ? 'text-emerald-600' : localScore > 0 ? 'text-amber-600' : 'text-rose-600'}`}>{localScore} / 5</h4>
+            <p className="text-slate-600 font-medium mb-4">ओरिएंटेशन स्कोर</p>
+          </div>
+          {transcript && <div className="mt-4 p-4 bg-slate-50 rounded-xl text-slate-600 italic text-sm text-center">सुना गया: "{transcript}"</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── TEST 2: MEMORY REGISTRATION ────────────────────────────────
 function RegistrationCard() {
   const { scores, setScore } = useAssessment();
   const [isRecording, setIsRecording] = useState(false);
@@ -386,24 +415,28 @@ function RegistrationCard() {
   const chunksRef = useRef<Blob[]>([]);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const speakAndWait = (text: string, rate = 0.85) => new Promise<void>(resolve => {
-    if (!('speechSynthesis' in window)) { resolve(); return; }
-    const u = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis.getVoices();
-    u.voice = voices.find(v => v.lang.includes('hi-IN') || v.name.includes('Lekha')) || voices[0];
-    u.rate = rate; u.pitch = 1.1;
-    u.onend = () => resolve(); u.onerror = () => resolve();
-    window.speechSynthesis.speak(u);
-  });
+  if (scores.registration.score !== null)
+    return <CompletedCard title="मेमोरी (Memory)" subtitle={`स्कोर: ${scores.registration.score}/3 शब्द याद रहे`} />;
 
   const startMemorySequence = async () => {
     if (!('speechSynthesis' in window)) { setTestPhase('ready'); return; }
-    setTestPhase('intro'); await speakAndWait("कृपया इन तीन शब्दों को ध्यान से सुनें और याद रखें।", 0.9);
-    await new Promise(r => setTimeout(r, 500));
-    setTestPhase('word1'); await speakAndWait("सेब", 0.85); await new Promise(r => setTimeout(r, 2500));
-    setTestPhase('word2'); await speakAndWait("सिक्का", 0.85); await new Promise(r => setTimeout(r, 2500));
-    setTestPhase('word3'); await speakAndWait("मेज", 0.85); await new Promise(r => setTimeout(r, 2500));
-    setTestPhase('ready'); await speakAndWait("अब, रिकॉर्ड बटन दबाएं और उन्हें मुझे वापस दोहराएं।", 0.9);
+
+    // Fire intro speech but don't await — show UI immediately
+    speak("कृपया इन तीन शब्दों को ध्यान से सुनें और याद रखें।", 0.9);
+    setTestPhase('intro');
+    await new Promise(r => setTimeout(r, 1800));
+
+    setTestPhase('word1'); speak("सेब");
+    await new Promise(r => setTimeout(r, 1500));
+
+    setTestPhase('word2'); speak("सिक्का");
+    await new Promise(r => setTimeout(r, 1500));
+
+    setTestPhase('word3'); speak("मेज");
+    await new Promise(r => setTimeout(r, 1500));
+
+    setTestPhase('ready');
+    speak("अब रिकॉर्ड बटन दबाएं और उन्हें दोहराएं।", 0.9);
   };
 
   const toggleRecording = async () => {
@@ -428,11 +461,9 @@ function RegistrationCard() {
             setTranscript(data.transcript);
             const l = data.transcript.toLowerCase();
             const matches: string[] = [];
-            
             if (l.includes("सेब") || l.includes("seb") || l.includes("apple")) matches.push("सेब");
             if (l.includes("सिक्का") || l.includes("sikka") || l.includes("coin") || l.includes("penny")) matches.push("सिक्का");
             if (l.includes("मेज") || l.includes("mez") || l.includes("mej") || l.includes("table")) matches.push("मेज");
-            
             setLocalScore(matches.length); setMatchedWords(matches);
             setScore('registration', { score: matches.length, time: null });
             setTestPhase('results');
@@ -453,8 +484,6 @@ function RegistrationCard() {
     } catch { alert("Microphone blocked."); }
   };
 
-  if (scores.registration.score !== null) return <CompletedCard title="मेमोरी (Memory)" subtitle={`स्कोर: ${scores.registration.score}/3 शब्द याद रहे`} />;
-
   return (
     <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 min-h-[300px] flex flex-col justify-center">
       <div className="flex items-center space-x-3 mb-6">
@@ -471,7 +500,7 @@ function RegistrationCard() {
       )}
       {['intro','word1','word2','word3'].includes(testPhase) && (
         <div className="flex-1 flex flex-col items-center justify-center py-8 animate-in fade-in duration-500">
-          {testPhase === 'intro' && <p className="text-xl font-medium text-slate-500 animate-pulse">ध्यान से सुनें...</p>}
+          {testPhase === 'intro'  && <p className="text-xl font-medium text-slate-500 animate-pulse">ध्यान से सुनें...</p>}
           {testPhase === 'word1' && <h1 className="text-6xl font-black text-slate-800 tracking-widest">सेब</h1>}
           {testPhase === 'word2' && <h1 className="text-6xl font-black text-slate-800 tracking-widest">सिक्का</h1>}
           {testPhase === 'word3' && <h1 className="text-6xl font-black text-slate-800 tracking-widest">मेज</h1>}
@@ -497,6 +526,7 @@ function RegistrationCard() {
               <span key={w} className="bg-slate-800 text-white px-3 py-1 rounded-md font-medium">{w}</span>
             )) : <span className="bg-rose-100 text-rose-700 px-3 py-1 rounded-md font-medium">कोई शब्द नहीं मिला</span>}
           </div>
+          {transcript && <div className="mt-4 p-4 bg-slate-50 rounded-xl text-slate-600 italic text-sm">सुना गया: "{transcript}"</div>}
         </div>
       )}
     </div>
@@ -504,131 +534,117 @@ function RegistrationCard() {
 }
 
 // ── TEST 3: ATTENTION ──────────────────────────────────────────
-// ── TEST 3: ATTENTION (VOICE-BASED) ──────────────────────────
 function AttentionCard() {
-    const { scores, setScore } = useAssessment();
-    const [isRecording, setIsRecording] = useState(false);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [transcript, setTranscript] = useState("");
-    const [testPhase, setTestPhase] = useState<'idle'|'ready'|'results'>('idle');
-    const [countdown, setCountdown] = useState(15);
-    const [localScore, setLocalScore] = useState(0);
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const chunksRef = useRef<Blob[]>([]);
-    const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  
-    if (scores.attention.score !== null) return <CompletedCard title="ध्यान (Attention)" subtitle={`स्कोर: ${scores.attention.score}/5 दर्ज किया गया`} />;
-  
-    const speakAndWait = (text: string, rate = 0.85) => new Promise<void>(resolve => {
-      if (!('speechSynthesis' in window)) { resolve(); return; }
-      const u = new SpeechSynthesisUtterance(text);
-      const voices = window.speechSynthesis.getVoices();
-      u.voice = voices.find(v => v.lang.includes('hi-IN') || v.name.includes('Lekha')) || voices[0];
-      u.rate = rate; u.pitch = 1.1;
-      u.onend = () => resolve(); u.onerror = () => resolve();
-      window.speechSynthesis.speak(u);
-    });
-  
-    const startAttentionTask = async () => {
-      setTestPhase('ready');
-      await speakAndWait("कृपया सप्ताह के दिनों के नाम उल्टे क्रम में बताएं। रविवार से शुरू करें और पीछे की ओर जाएं।", 0.9);
-    };
-  
-    const toggleRecording = async () => {
-      if (isRecording && mediaRecorderRef.current) {
-        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-        mediaRecorderRef.current.stop(); return;
-      }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const recorder = new MediaRecorder(stream);
-        chunksRef.current = [];
-        recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-        recorder.onstop = async () => {
-          setIsRecording(false); setIsProcessing(true); stream.getTracks().forEach(t => t.stop());
-          const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-          if (blob.size < 1000) { setIsProcessing(false); return; }
-          const fd = new FormData(); fd.append('file', blob);
-          try {
-            const res = await fetch('/api/transcribe', { method: 'POST', body: fd });
-            const data = await res.json();
-            if (data.transcript) {
-              setTranscript(data.transcript);
-              const l = data.transcript.toLowerCase();
-              let points = 0;
-              
-              // Grading logic for days of the week in Hindi (Max 5 points for clinical Attention module)
-              if (l.includes("रविवार") || l.includes("sunday")) points++;
-              if (l.includes("शनिवार") || l.includes("saturday")) points++;
-              if (l.includes("शुक्रवार") || l.includes("friday")) points++;
-              if (l.includes("गुरुवार") || l.includes("बृहस्पतिवार") || l.includes("thursday")) points++;
-              if (l.includes("बुधवार") || l.includes("wednesday")) points++;
-              if (l.includes("मंगलवार") || l.includes("tuesday")) points++;
-              if (l.includes("सोमवार") || l.includes("monday")) points++;
-  
-              // Cap at 5 points to match the clinical standard for this module
-              const finalScore = Math.min(5, points);
-              setLocalScore(finalScore);
-              setScore('attention', { score: finalScore, time: null });
-              setTestPhase('results');
-            }
-          } catch {} finally { setIsProcessing(false); }
-        };
-        recorder.start(); mediaRecorderRef.current = recorder; setIsRecording(true); setCountdown(15);
-        countdownIntervalRef.current = setInterval(() => {
-          setCountdown(prev => {
-            if (prev <= 1) {
-              if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
-              if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
-      } catch { alert("Microphone blocked."); }
-    };
-  
-    return (
-      <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 min-h-[300px] flex flex-col justify-center">
-        <div className="flex items-center space-x-3 mb-6">
-          <div className="bg-amber-50 w-12 h-12 rounded-xl flex items-center justify-center text-amber-500 text-2xl">🧩</div>
-          <div>
-            <h3 className="text-xl font-bold text-slate-800">मॉड्यूल 3: ध्यान (Attention)</h3>
-            <p className="text-slate-500 text-sm">कार्यशील स्मृति (Working Memory)</p>
-          </div>
+  const { scores, setScore } = useAssessment();
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [testPhase, setTestPhase] = useState<'idle'|'ready'|'results'>('idle');
+  const [countdown, setCountdown] = useState(15);
+  const [localScore, setLocalScore] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  if (scores.attention.score !== null)
+    return <CompletedCard title="ध्यान (Attention)" subtitle={`स्कोर: ${scores.attention.score}/5 दर्ज किया गया`} />;
+
+  const startAttentionTask = () => {
+    setTestPhase('ready'); // UI updates instantly
+    speak("कृपया सप्ताह के दिनों के नाम उल्टे क्रम में बताएं। रविवार से शुरू करें और पीछे की ओर जाएं।", 0.9);
+  };
+
+  const toggleRecording = async () => {
+    if (isRecording && mediaRecorderRef.current) {
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      mediaRecorderRef.current.stop(); return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = async () => {
+        setIsRecording(false); setIsProcessing(true); stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        if (blob.size < 1000) { setIsProcessing(false); return; }
+        const fd = new FormData(); fd.append('file', blob);
+        try {
+          const res = await fetch('/api/transcribe', { method: 'POST', body: fd });
+          const data = await res.json();
+          if (data.transcript) {
+            setTranscript(data.transcript);
+            const l = data.transcript.toLowerCase();
+            let points = 0;
+            if (l.includes("रविवार") || l.includes("sunday"))    points++;
+            if (l.includes("शनिवार") || l.includes("saturday"))  points++;
+            if (l.includes("शुक्रवार") || l.includes("friday"))  points++;
+            if (l.includes("गुरुवार") || l.includes("बृहस्पतिवार") || l.includes("thursday")) points++;
+            if (l.includes("बुधवार") || l.includes("wednesday")) points++;
+            if (l.includes("मंगलवार") || l.includes("tuesday"))  points++;
+            if (l.includes("सोमवार") || l.includes("monday"))    points++;
+            const finalScore = Math.min(5, points);
+            setLocalScore(finalScore);
+            setScore('attention', { score: finalScore, time: null });
+            setTestPhase('results');
+          }
+        } catch {} finally { setIsProcessing(false); }
+      };
+      recorder.start(); mediaRecorderRef.current = recorder; setIsRecording(true); setCountdown(15);
+      countdownIntervalRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+            if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch { alert("Microphone blocked."); }
+  };
+
+  return (
+    <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 min-h-[300px] flex flex-col justify-center">
+      <div className="flex items-center space-x-3 mb-6">
+        <div className="bg-amber-50 w-12 h-12 rounded-xl flex items-center justify-center text-amber-500 text-2xl">🧩</div>
+        <div>
+          <h3 className="text-xl font-bold text-slate-800">मॉड्यूल 3: ध्यान (Attention)</h3>
+          <p className="text-slate-500 text-sm">कार्यशील स्मृति (Working Memory)</p>
         </div>
-  
-        {testPhase === 'idle' && (
-          <button onClick={startAttentionTask} className="w-full bg-amber-100 text-amber-700 py-6 font-bold rounded-xl hover:bg-amber-200 transition-all flex items-center justify-center space-x-3 border border-amber-200">
-            <span className="text-2xl">🔊</span><span className="text-lg">ऑडियो निर्देश चलाएं</span>
-          </button>
-        )}
-  
-        {testPhase === 'ready' && (
-          <div className="space-y-4 animate-in slide-in-from-bottom-4 fade-in">
-            <div className="text-center p-6 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-lg font-bold text-slate-800">सप्ताह के दिनों के नाम उल्टे क्रम में बताएं।</span>
-              <p className="text-sm text-slate-500 mt-2">उदाहरण: रविवार, शनिवार, शुक्रवार...</p>
-            </div>
-            <button onClick={toggleRecording} disabled={isProcessing}
-              className={`w-full text-white py-4 font-bold rounded-xl transition-all shadow-lg ${isRecording ? 'bg-rose-500 animate-pulse scale-95' : isProcessing ? 'bg-slate-400' : 'bg-slate-900 hover:bg-slate-800'}`}>
-              {isRecording ? `🔴 रिकॉर्डिंग... ${countdown}s में बंद हो जाएगी` : isProcessing ? '⏳ AI जांच रहा है...' : '🎤 उत्तर रिकॉर्ड करने के लिए टैप करें'}
-            </button>
-          </div>
-        )}
-  
-        {testPhase === 'results' && (
-          <div className="animate-in zoom-in-95 fade-in duration-300 mt-4">
-            <div className={`p-6 rounded-2xl border ${localScore === 5 ? 'bg-emerald-50 border-emerald-200' : localScore > 2 ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'} text-center`}>
-              <h4 className={`text-4xl font-black mb-2 ${localScore === 5 ? 'text-emerald-600' : localScore > 2 ? 'text-amber-600' : 'text-rose-600'}`}>{localScore} / 5</h4>
-              <p className="text-slate-600 font-medium mb-4">ध्यान स्कोर (Attention Score)</p>
-            </div>
-            {transcript && <div className="mt-4 p-4 bg-slate-50 rounded-xl text-slate-600 italic text-sm text-center">सुना गया: "{transcript}"</div>}
-          </div>
-        )}
       </div>
-    );
-  }
+
+      {testPhase === 'idle' && (
+        <button onClick={startAttentionTask} className="w-full bg-amber-100 text-amber-700 py-6 font-bold rounded-xl hover:bg-amber-200 transition-all flex items-center justify-center space-x-3 border border-amber-200">
+          <span className="text-2xl">🔊</span><span className="text-lg">ऑडियो निर्देश चलाएं</span>
+        </button>
+      )}
+
+      {testPhase === 'ready' && (
+        <div className="space-y-4 animate-in slide-in-from-bottom-4 fade-in">
+          <div className="text-center p-6 bg-slate-50 rounded-xl border border-slate-200">
+            <span className="text-lg font-bold text-slate-800">सप्ताह के दिनों के नाम उल्टे क्रम में बताएं।</span>
+            <p className="text-sm text-slate-500 mt-2">उदाहरण: रविवार, शनिवार, शुक्रवार...</p>
+          </div>
+          <button onClick={toggleRecording} disabled={isProcessing}
+            className={`w-full text-white py-4 font-bold rounded-xl transition-all shadow-lg ${isRecording ? 'bg-rose-500 animate-pulse scale-95' : isProcessing ? 'bg-slate-400' : 'bg-slate-900 hover:bg-slate-800'}`}>
+            {isRecording ? `🔴 रिकॉर्डिंग... ${countdown}s में बंद हो जाएगी` : isProcessing ? '⏳ AI जांच रहा है...' : '🎤 उत्तर रिकॉर्ड करने के लिए टैप करें'}
+          </button>
+        </div>
+      )}
+
+      {testPhase === 'results' && (
+        <div className="animate-in zoom-in-95 fade-in duration-300 mt-4">
+          <div className={`p-6 rounded-2xl border ${localScore === 5 ? 'bg-emerald-50 border-emerald-200' : localScore > 2 ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'} text-center`}>
+            <h4 className={`text-4xl font-black mb-2 ${localScore === 5 ? 'text-emerald-600' : localScore > 2 ? 'text-amber-600' : 'text-rose-600'}`}>{localScore} / 5</h4>
+            <p className="text-slate-600 font-medium mb-4">ध्यान स्कोर (Attention Score)</p>
+          </div>
+          {transcript && <div className="mt-4 p-4 bg-slate-50 rounded-xl text-slate-600 italic text-sm text-center">सुना गया: "{transcript}"</div>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── TEST 4: VISUAL NAMING ──────────────────────────────────────
 function VisualNamingCard() {
@@ -642,30 +658,19 @@ function VisualNamingCard() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
-  // ADDED: Hindi Voice Instructions for Naming Task
-  const speakAndWait = (text: string, rate = 0.85) => new Promise<void>(resolve => {
-    if (!('speechSynthesis' in window)) { resolve(); return; }
-    const u = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis.getVoices();
-    u.voice = voices.find(v => v.lang.includes('hi-IN') || v.name.includes('Lekha')) || voices[0];
-    u.rate = rate; u.pitch = 1.1;
-    u.onend = () => resolve(); u.onerror = () => resolve();
-    window.speechSynthesis.speak(u);
-  });
+  if (scores.animalNaming.score !== null)
+    return <CompletedCard title="दृश्य पहचान (Naming)" subtitle={`स्कोर: ${scores.animalNaming.score}/3 जानवर पहचाने गए`} />;
 
-  const startNamingTask = async () => {
-    setTestPhase('testing');
-    await speakAndWait("कृपया इस चित्र में दिख रहे जानवर का नाम बताएं।", 0.9);
-  };
-
-  // ADDED: Translated accepted animal names to Hindi
   const clinicalImages = [
-    { id: "camel",    accepted: ["ऊंट", "unt", "oont", "camel"],        imageSrc: "/camel.jpg" },
-    { id: "elephant", accepted: ["हाथी", "hathi", "haathi", "elephant"], imageSrc: "/elephant.avif" },
+    { id: "camel",    accepted: ["ऊंट", "unt", "oont", "camel"],          imageSrc: "/camel.jpg" },
+    { id: "elephant", accepted: ["हाथी", "hathi", "haathi", "elephant"],   imageSrc: "/elephant.avif" },
     { id: "lion",     accepted: ["शेर", "सिंह", "sher", "singh", "lion"], imageSrc: "/lion.webp" },
   ];
 
-  if (scores.animalNaming.score !== null) return <CompletedCard title="दृश्य पहचान (Naming)" subtitle={`स्कोर: ${scores.animalNaming.score}/3 जानवर पहचाने गए`} />;
+  const startNamingTask = () => {
+    setTestPhase('testing'); // UI updates instantly
+    speak("कृपया इस चित्र में दिख रहे जानवर का नाम बताएं।", 0.9);
+  };
 
   const checkAnswer = (text: string, accepted: string[]) =>
     accepted.some(a => text.toLowerCase().trim().includes(a));
@@ -747,76 +752,60 @@ function VisualNamingCard() {
 }
 
 // ── TEST 5: REACTION TIME ──────────────────────────────────────
-// ── TEST 5: REACTION TIME (VOICE-ENABLED) ──────────────────────
 function ReactionCard() {
-    const { scores, setScore } = useAssessment();
-    const [state, setState] = useState<'idle'|'waiting'|'go'|'result'>('idle');
-    const startTimeRef = useRef(0);
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
-    // Added: Hindi Voice Logic for instructions
-    const speakAndWait = (text: string, rate = 0.85) => new Promise<void>(resolve => {
-      if (!('speechSynthesis' in window)) { resolve(); return; }
-      const u = new SpeechSynthesisUtterance(text);
-      const voices = window.speechSynthesis.getVoices();
-      // Specifically looking for the Hindi voice
-      const hindiVoice = voices.find(v => v.lang.includes('hi-IN') || v.name.includes('Lekha'));
-      if (hindiVoice) u.voice = hindiVoice;
-      u.rate = rate; u.pitch = 1.1;
-      u.onend = () => resolve(); u.onerror = () => resolve();
-      window.speechSynthesis.speak(u);
-    });
-  
-    const startTest = async () => {
-      // Speak the instruction before starting the wait timer
-      await speakAndWait("जैसे ही बटन हरा हो जाए, उस पर तुरंत क्लिक करें। तैयार हो जाइए।", 0.9);
-      
-      setState('waiting');
-      timeoutRef.current = setTimeout(() => {
-        setState('go'); startTimeRef.current = Date.now();
-      }, Math.floor(Math.random() * 3000) + 2000);
-    };
-  
-    const handleClick = () => {
-      if (state === 'waiting') {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        alert("बहुत जल्दी क्लिक किया! पुनः प्रयास करें।"); 
-        setState('idle');
-      } else if (state === 'go') {
-        setScore('reactionTime', { score: Date.now() - startTimeRef.current, time: null });
-        setState('result');
-      }
-    };
-  
-    if (scores.reactionTime.score !== null) return <CompletedCard title="प्रतिक्रिया (Reaction)" subtitle={`समय दर्ज किया गया: ${scores.reactionTime.score}ms`} />;
-  
-    return (
-      <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
-        <div className="bg-orange-50 w-12 h-12 rounded-xl flex items-center justify-center text-orange-500 text-2xl mb-4">⚡</div>
-        <h3 className="text-xl font-bold text-slate-800 mb-2">मॉड्यूल 5: रिएक्शन टाइम</h3>
-        <p className="text-slate-500 mb-6">जैसे ही बड़ा बटन <strong>हरा</strong> हो जाए, उस पर क्लिक करें।</p>
-        
-        {state === 'idle' && (
-          <button onClick={startTest} className="w-full h-32 bg-slate-100 border-2 border-dashed border-slate-300 text-slate-600 font-bold rounded-2xl text-xl hover:bg-slate-200 flex items-center justify-center space-x-3">
-            <span className="text-2xl">🔊</span>
-            <span>रिएक्शन टेस्ट शुरू करें</span>
-          </button>
-        )}
-        
-        {state === 'waiting' && (
-          <button onMouseDown={handleClick} className="w-full h-32 bg-rose-500 text-white font-bold rounded-2xl text-2xl shadow-inner animate-pulse">
-            हरे रंग की प्रतीक्षा करें...
-          </button>
-        )}
-        
-        {state === 'go' && (
-          <button onMouseDown={handleClick} className="w-full h-32 bg-emerald-500 text-white font-black rounded-2xl text-4xl shadow-[0_0_30px_rgba(16,185,129,0.5)]">
-            अभी क्लिक करें!
-          </button>
-        )}
-      </div>
-    );
-  }
+  const { scores, setScore } = useAssessment();
+  const [state, setState] = useState<'idle'|'waiting'|'go'|'result'>('idle');
+  const startTimeRef = useRef(0);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  if (scores.reactionTime.score !== null)
+    return <CompletedCard title="प्रतिक्रिया (Reaction)" subtitle={`समय दर्ज किया गया: ${scores.reactionTime.score}ms`} />;
+
+  const startTest = () => {
+    // Speak instruction in background, then immediately start the wait timer
+    speak("जैसे ही बटन हरा हो जाए, उस पर तुरंत क्लिक करें। तैयार हो जाइए।", 0.9);
+    setState('waiting');
+    timeoutRef.current = setTimeout(() => {
+      setState('go'); startTimeRef.current = Date.now();
+    }, Math.floor(Math.random() * 3000) + 2000);
+  };
+
+  const handleClick = () => {
+    if (state === 'waiting') {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      alert("बहुत जल्दी क्लिक किया! पुनः प्रयास करें।");
+      setState('idle');
+    } else if (state === 'go') {
+      setScore('reactionTime', { score: Date.now() - startTimeRef.current, time: null });
+      setState('result');
+    }
+  };
+
+  return (
+    <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
+      <div className="bg-orange-50 w-12 h-12 rounded-xl flex items-center justify-center text-orange-500 text-2xl mb-4">⚡</div>
+      <h3 className="text-xl font-bold text-slate-800 mb-2">मॉड्यूल 5: रिएक्शन टाइम</h3>
+      <p className="text-slate-500 mb-6">जैसे ही बड़ा बटन <strong>हरा</strong> हो जाए, उस पर क्लिक करें।</p>
+
+      {state === 'idle' && (
+        <button onClick={startTest} className="w-full h-32 bg-slate-100 border-2 border-dashed border-slate-300 text-slate-600 font-bold rounded-2xl text-xl hover:bg-slate-200 flex items-center justify-center space-x-3">
+          <span className="text-2xl">🔊</span>
+          <span>रिएक्शन टेस्ट शुरू करें</span>
+        </button>
+      )}
+      {state === 'waiting' && (
+        <button onMouseDown={handleClick} className="w-full h-32 bg-rose-500 text-white font-bold rounded-2xl text-2xl shadow-inner animate-pulse">
+          हरे रंग की प्रतीक्षा करें...
+        </button>
+      )}
+      {state === 'go' && (
+        <button onMouseDown={handleClick} className="w-full h-32 bg-emerald-500 text-white font-black rounded-2xl text-4xl shadow-[0_0_30px_rgba(16,185,129,0.5)]">
+          अभी क्लिक करें!
+        </button>
+      )}
+    </div>
+  );
+}
 
 // ── TEST 6: DELAYED RECALL ─────────────────────────────────────
 function RecallCard() {
@@ -832,22 +821,15 @@ function RecallCard() {
   const chunksRef = useRef<Blob[]>([]);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const speakAndWait = (text: string, rate = 0.85) => new Promise<void>(resolve => {
-    if (!('speechSynthesis' in window)) { resolve(); return; }
-    const u = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis.getVoices();
-    const hindiVoice = voices.find(v => v.lang.includes('hi-IN') || v.name.includes('Lekha'));
-    if (hindiVoice) u.voice = hindiVoice;
-    u.rate = rate; u.pitch = 1.1;
-    u.onend = () => resolve(); u.onerror = () => resolve();
-    window.speechSynthesis.speak(u);
-  });
+  if (scores.recall.score !== null)
+    return <CompletedCard title="विलंबित याद (Recall)" subtitle={`स्कोर: ${scores.recall.score}/3 शब्द याद आए`} />;
 
-  const startRecallSequence = async () => {
+  const startRecallSequence = () => {
     setTestPhase('intro');
-    // ADDED: Spoken Hindi instructions
-    await speakAndWait("अब, कृपया मुझे वे तीन शब्द बताएं जो आपने पहले याद किए थे। क्रम मायने नहीं रखता।", 0.9);
-    setTestPhase('ready');
+    // Show the instruction text AND speak it simultaneously
+    speak("अब, कृपया मुझे वे तीन शब्द बताएं जो आपने पहले याद किए थे। क्रम मायने नहीं रखता।", 0.9);
+    // Move to ready after a short pause so user can read the text too
+    setTimeout(() => setTestPhase('ready'), 2200);
   };
 
   const toggleRecording = async () => {
@@ -872,12 +854,9 @@ function RecallCard() {
             setTranscript(data.transcript);
             const l = data.transcript.toLowerCase();
             const matches: string[] = [];
-            
-            // Evaluates Devanagari Hindi Text
             if (l.includes("सेब") || l.includes("seb") || l.includes("apple")) matches.push("सेब");
             if (l.includes("सिक्का") || l.includes("sikka") || l.includes("coin") || l.includes("penny")) matches.push("सिक्का");
             if (l.includes("मेज") || l.includes("mez") || l.includes("mej") || l.includes("table")) matches.push("मेज");
-            
             setLocalScore(matches.length); setMatchedWords(matches);
             setScore('recall', { score: matches.length, time: null });
             setTestPhase('results');
@@ -897,8 +876,6 @@ function RecallCard() {
       }, 1000);
     } catch { alert("Microphone blocked."); }
   };
-
-  if (scores.recall.score !== null) return <CompletedCard title="विलंबित याद (Recall)" subtitle={`स्कोर: ${scores.recall.score}/3 शब्द याद आए`} />;
 
   return (
     <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 min-h-[300px] flex flex-col justify-center">
@@ -969,22 +946,12 @@ function SpeechFluencyCard() {
   const chunksRef = useRef<Blob[]>([]);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  if (scores.speechAnalysis.clarity !== null) return <CompletedCard title="सहज भाषण (Speech Analysis)" subtitle={`स्पष्टता स्कोर: ${scores.speechAnalysis.clarity}%`} />;
+  if (scores.speechAnalysis.clarity !== null)
+    return <CompletedCard title="सहज भाषण (Speech Analysis)" subtitle={`स्पष्टता स्कोर: ${scores.speechAnalysis.clarity}%`} />;
 
-  // ADDED: Hindi Voice Instructions for Speech Task
-  const speakAndWait = (text: string, rate = 0.85) => new Promise<void>(resolve => {
-    if (!('speechSynthesis' in window)) { resolve(); return; }
-    const u = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis.getVoices();
-    u.voice = voices.find(v => v.lang.includes('hi-IN') || v.name.includes('Lekha')) || voices[0];
-    u.rate = rate; u.pitch = 1.1;
-    u.onend = () => resolve(); u.onerror = () => resolve();
-    window.speechSynthesis.speak(u);
-  });
-
-  const startSpeechTask = async () => {
-    setTestPhase('ready');
-    await speakAndWait("इस चित्र में आप जो कुछ भी देखते हैं, उसका विस्तार से वर्णन करें।", 0.9);
+  const startSpeechTask = () => {
+    setTestPhase('ready'); // UI updates instantly
+    speak("इस चित्र में आप जो कुछ भी देखते हैं, उसका विस्तार से वर्णन करें।", 0.9);
   };
 
   const toggleRecording = async () => {
@@ -1007,29 +974,19 @@ function SpeechFluencyCard() {
           const data = await res.json();
           if (data.transcript) {
             const rawText = data.transcript.toLowerCase();
-            
-            // CRITICAL FIX: Split by spaces/punctuation instead of English \w characters
-            // This safely isolates Hindi (Devanagari) words!
-            const words = rawText.split(/[\s,।!?]+/).filter(Boolean); 
-            
-            // Hindi Hesitation markers
+            const words = rawText.split(/[\s,।!?]+/).filter(Boolean);
             const hesitationMarkers = ['अह','उम','हम्म','आह', 'uh', 'um', 'hmm', 'ah'];
             const hesitations = words.filter((w: string) => hesitationMarkers.includes(w)).length;
-            
-            // Hindi Target Keywords for Cookie Theft Picture
             const TARGET_KEYWORDS = ['लड़का', 'लड़के', 'कुकी', 'बिस्कुट', 'मां', 'माता', 'औरत', 'महिला', 'पानी', 'सिंक', 'गिर', 'कुर्सी', 'स्टूल'];
             const matchedWordsList = TARGET_KEYWORDS.filter(kw => rawText.includes(kw));
-            
             let repetitions = 0;
             for (let i = 0; i < words.length - 1; i++) { if (words[i] === words[i+1]) repetitions++; }
-            
             let penalty = 0;
-            if (hesitations > 3) penalty += 15;
-            if (words.length < 8) penalty += 20;
+            if (hesitations > 3)          penalty += 15;
+            if (words.length < 8)         penalty += 20;
             if (matchedWordsList.length < 3) penalty += 25;
-            if (repetitions > 1) penalty += 15;
+            if (repetitions > 1)          penalty += 15;
             const finalScore = Math.max(0, Math.min(100, 100 - penalty));
-            
             setMetrics({ hesitations, repetitions, wordCount: words.length, keywordsFound: matchedWordsList.length, transcript: data.transcript, matchedWordsList });
             setScore('speechAnalysis', { clarity: finalScore, hesitations });
             setTestPhase('results');
